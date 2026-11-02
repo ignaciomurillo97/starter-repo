@@ -103,4 +103,55 @@ docker-compose down -v && docker-compose up --build
 - Watch `mock-bigpms` logs while you work — it announces duplicates, bad signatures, and simulated failures as it produces them.
 - If something is ambiguous, make a decision and document it in your README.
 
+## Work Log and Write-Up
+
+**Time spent:** about 96 minutes (24 minutes remained in the 2-hour cap)
+
+| Step | Status | Time spent | Notes / outcome |
+|---|---|---:|---|
+| Read the spec and prepare feature notes | Done | ~25m | Used AI to generate diagrams, summarize the codebase, and draft feature specs. |
+| Webhook subscription and callback | Done | ~15m | Implemented from the spec; reviewed the AI-generated code, ran tests, and corrected issues found. |
+| Scheduled feed sync and backfill | Done | ~20m | Implemented from the spec; reviewed and validated the AI-generated code, then fixed issues found. |
+| Reconciliation report | Spec drafted; implementation deferred | ~2m | Wrote a spec for the report but did not implement it, leaving time for documentation and to avoid ending with incomplete code. |
+| Bonus work (if any) | Not attempted | 0m | Deferred to stay within the time cap. |
+| README write-up and final documentation | In progress | ~34m estimated | Estimated remainder based on the approximate step times above and the 96-minute elapsed-time note. |
+
+### Decisions and Tradeoffs
+
+#### Property ID Derivation
+
+- **Decision:** Used harcoded instead of fetching from the database.
+- **Alternatives considered:** Fetch the property ID from the database.
+- **Why / tradeoff:** Given the docs allude to multiproperties as a future possibility, I felt the property ID might require a more complex derivation. As I was still working on the current features I opted for the simplest method that would get the prioritized work done to then discuss the ideal implementation here.
+
+#### Idempotency and Cross-Channel Deduplication
+
+- **Decision:** implemented an advisory lock such that the callbacks and feed sync can't update the same payment simultaneously. Though I later realized this isn't the optimal decision
+- **Alternatives considered:** Unique constraint.
+- **Why / tradeoff:** I initially decided for an advisory lock such that only one channel could perform write operations and given the callback had to update 2 places, I believed a lock was the only option. However, the event table should update anyway and if the insert to the ledger table succeeded or had a conflict it would not matter. So the unique ID would have lower complexity in that regard and I believe it would be marginally faster as it avoids blocking.
+
+#### Feed Retries and Cursor Durability
+
+- **Decision:** 
+- **Alternatives considered:**
+- **Why / tradeoff:**
+
+#### Reconciliation Queries and Other Choices
+
+- **Decision:**
+- **Alternatives considered:**
+- **Why / tradeoff:**
+
+### What I'd Do Next
+
+- [With more time, list the next improvements. Describe out-of-scope items rather than building them.]
+- take more time planning how these features interact with each other and create appropiate work units to match instead of doing 1:1 with TODOs
+- leverage git worktrees to implement changes in parallel. 
+
+### AI Usage
+
+- **AI-generated:** Diagrams, a codebase summary, feature specs, and implementation code for the webhook and scheduled feed sync.
+- **Kept as-is:** Generated code that passed review, tests, and validation against the spec.
+- **Corrected or changed:** Reviewed and tested the generated implementations, then corrected issues found during review and validation.
+
 Good luck.
