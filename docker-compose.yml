@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: leaseflow
+      POSTGRES_PASSWORD: leaseflow
+      POSTGRES_DB: leaseflow
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+      - ./db/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U leaseflow -d leaseflow"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+
+  # Your service: LeaseFlow's integration layer. This is your workspace.
+  app:
+    build: ./app
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgres://leaseflow:leaseflow@db:5432/leaseflow
+      BIGPMS_API_URL: http://mock-bigpms:3001
+      CALLBACK_URL: http://app:8000/webhooks/bigpms
+      WEBHOOK_SECRET: leaseflow-dev-secret
+      SYNC_INTERVAL_SECONDS: "30"
+    volumes:
+      - ./app:/code
+    depends_on:
+      db:
+        condition: service_healthy
+      mock-bigpms:
+        condition: service_healthy
+
+  # Mock BigPMS — the partner platform you're integrating with. Treat it as a
+  # black box you do not control. Do NOT modify it. (directory: ./mock-bigpms)
+  mock-bigpms:
+    build: ./mock-bigpms
+    ports:
+      - "3001:3001"
+    environment:
+      WEBHOOK_INTERVAL_SECONDS: "15"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3001/health')"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
