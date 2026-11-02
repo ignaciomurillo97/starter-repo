@@ -103,6 +103,8 @@ docker-compose down -v && docker-compose up --build
 - Watch `mock-bigpms` logs while you work — it announces duplicates, bad signatures, and simulated failures as it produces them.
 - If something is ambiguous, make a decision and document it in your README.
 
+Good luck.
+
 ## Work Log and Write-Up
 
 **Time spent:** about 96 minutes (24 minutes remained in the 2-hour cap)
@@ -120,9 +122,9 @@ docker-compose down -v && docker-compose up --build
 
 #### Property ID Derivation
 
-- **Decision:** Used harcoded instead of fetching from the database.
+- **Decision:** Used a hardcoded value instead of fetching from the database.
 - **Alternatives considered:** Fetch the property ID from the database.
-- **Why / tradeoff:** Given the docs allude to multiproperties as a future possibility, I felt the property ID might require a more complex derivation. As I was still working on the current features I opted for the simplest method that would get the prioritized work done to then discuss the ideal implementation here.
+- **Why / tradeoff:** Given the docs allude to multiple properties as a future possibility, I felt the property ID might require a more complex derivation. As I was still working on the current features I opted for the simplest method that would get the prioritized work done to then discuss the ideal implementation here.
 
 #### Idempotency and Cross-Channel Deduplication
 
@@ -130,28 +132,30 @@ docker-compose down -v && docker-compose up --build
 - **Alternatives considered:** Unique constraint.
 - **Why / tradeoff:** I initially decided for an advisory lock such that only one channel could perform write operations and given the callback had to update 2 places, I believed a lock was the only option. However, the event table should update anyway and if the insert to the ledger table succeeded or had a conflict it would not matter. So the unique ID would have lower complexity in that regard and I believe it would be marginally faster as it avoids blocking.
 
-#### Feed Retries and Cursor Durability
+#### Reconciliation report
 
-- **Decision:** 
-- **Alternatives considered:**
-- **Why / tradeoff:**
-
-#### Reconciliation Queries and Other Choices
-
-- **Decision:**
-- **Alternatives considered:**
-- **Why / tradeoff:**
+- **Decision:** Not implement
+- **Alternatives considered:** Do a rush implementation with AI
+- **Why / tradeoff:** I decided to stick to the hard time constraint as best as I could and not have code I couldn't defend. As such I opted to not do this feature since the 30m I had left would not be enough to then also complete this report.
 
 ### What I'd Do Next
 
-- [With more time, list the next improvements. Describe out-of-scope items rather than building them.]
-- take more time planning how these features interact with each other and create appropiate work units to match instead of doing 1:1 with TODOs
+- take more time planning how these features interact with each other and create appropriate work units to match instead of doing 1:1 with TODOs
 - leverage git worktrees to implement changes in parallel. 
+- use github PRs for each change to have an easier time reviewing the code.
+- implement index on bigpms eventID, I noted this down early and forgot
+- Ask about status being overwritten to duplicate, I couldn't figure out how this would work in the context and I would have implemented this differently.
 
 ### AI Usage
 
-- **AI-generated:** Diagrams, a codebase summary, feature specs, and implementation code for the webhook and scheduled feed sync.
-- **Kept as-is:** Generated code that passed review, tests, and validation against the spec.
-- **Corrected or changed:** Reviewed and tested the generated implementations, then corrected issues found during review and validation.
+Given the short time and the complexity of the tasks on an unfamiliar code base, I used AI extensively, while taking care to review all the code and decisions myself.
 
-Good luck.
+To start off I used AI to summarize the SPEC and README, fetch any key constraints or details I should keep in mind. Then I used it to create ERD diagrams of the database and explain the core entities. I then created specs for each TODO as a feature again leveraging mermaid for diagramming such that when I asked the agent to implement the spec, I just had to validate it matched the decisions.
+
+Finally I used AI to help generate the report template, do general code reviews and spell checks for anything I may have missed.
+
+With more familiarity on the code base, I could have parallelized the tasks using worktrees.
+
+
+**NOTE** about 13m over on documentation.
+
