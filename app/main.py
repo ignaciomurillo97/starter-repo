@@ -20,6 +20,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from starlette.concurrency import run_in_threadpool
 
 from db import dict_cursor, get_conn, put_conn
+from feed_sync import sync_bigpms_ledger_events as run_bigpms_ledger_sync
 from webhook import (
     InvalidWebhookPayload,
     InvalidWebhookSignature,
@@ -105,8 +106,7 @@ async def bigpms_webhook(request: Request):
 
 def sync_bigpms_ledger_events():
     """Runs every SYNC_INTERVAL_SECONDS (scheduler is wired below)."""
-    # TODO: implement — see docs/SPEC.md
-    log.info("sync_bigpms_ledger_events: not implemented yet")
+    return run_bigpms_ledger_sync(BIGPMS_API_URL)
 
 
 scheduler = BackgroundScheduler()

@@ -3,7 +3,7 @@ import hashlib
 import hmac
 import json
 import logging
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import (
     AwareDatetime,
@@ -14,14 +14,10 @@ from pydantic import (
     ValidationError,
 )
 import requests
-from psycopg2.extras import Json
-from psycopg2.extensions import cursor as Cursor
 
-from db import get_conn, put_conn
+from ledger_repository import LedgerRepository
 
 log = logging.getLogger("leaseflow.webhook")
-
-PROPERTY_ID = "prop-001"
 
 
 class InvalidWebhookSignature(Exception):
@@ -93,46 +89,12 @@ def _parse_payment_event(raw_body: bytes) -> PaymentReceivedEvent:
         raise InvalidWebhookPayload(str(exc)) from exc
 
 
-def _insert_webhook_event(cur: Cursor, event: PaymentReceivedEvent) -> bool:
-    cur.execute(
-        """
-        INSERT INTO webhook_events
-            (event_id, event_type, payload, status, processed_at)
-        VALUES (%s, 'payment.received', %s, 'processed', now())
-        ON CONFLICT (event_id) DO NOTHING
-        RETURNING event_id
-        """,
-        (event.event_id, Json(event.model_dump(mode="json"))),
-    )
-    return cur.fetchone() is not None
-
-
-def _mark_duplicate(cur: Cursor, event_id: str) -> None:
-    cur.execute(
-        "UPDATE webhook_events SET status = 'duplicate' WHERE event_id = %s",
-        (event_id,),
-    )
-
-
-def _insert_ledger_payment(cur: Cursor, event: PaymentReceivedEvent) -> None:
-    cur.execute(
-        """
-        INSERT INTO resident_ledger
-            (property_id, resident_id, entry_type, amount_cents,
-             bigpms_event_id, occurred_at)
-        VALUES (%s, %s, 'payment', %s, %s, %s)
-        """,
-        (
-            PROPERTY_ID,
-            event.data.resident_id,
-            event.data.amount_cents,
-            event.event_id,
-            event.occurred_at,
-        ),
-    )
-
-
-def process_webhook(raw_body: bytes, signature: str | None, secret: str) -> str:
+def process_webhook(
+    raw_body: bytes,
+    signature: str | None,
+    secret: str,
+    repository: Optional[LedgerRepository] = None,
+) -> str:
     """Verify and atomically apply a BigPMS payment callback."""
     try:
         _validate_signature(raw_body, signature, secret)
@@ -141,20 +103,16 @@ def process_webhook(raw_body: bytes, signature: str | None, secret: str) -> str:
         raise
 
     event = _parse_payment_event(raw_body)
+    repository = repository or LedgerRepository()
 
     try:
-        conn = get_conn()
-        try:
-            with conn:
-                with conn.cursor() as cur:
-                    if not _insert_webhook_event(cur, event):
-                        _mark_duplicate(cur, event.event_id)
-                        result = "duplicate"
-                    else:
-                        _insert_ledger_payment(cur, event)
-                        result = "processed"
-        finally:
-            put_conn(conn)
+        result = repository.apply_webhook_payment(
+            event.event_id,
+            event.model_dump(mode="json"),
+            event.data.resident_id,
+            event.data.amount_cents,
+            event.occurred_at,
+        )
     except Exception:
         log.exception("Failed to process BigPMS webhook event %s", event.event_id)
         raise
