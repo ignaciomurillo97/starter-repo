@@ -16,9 +16,16 @@ import logging
 import os
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
+from starlette.concurrency import run_in_threadpool
 
 from db import dict_cursor, get_conn, put_conn
+from webhook import (
+    InvalidWebhookPayload,
+    InvalidWebhookSignature,
+    process_webhook,
+    register_webhook_subscription as register_bigpms_webhook_subscription,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 log = logging.getLogger("leaseflow")
@@ -72,19 +79,28 @@ def list_residents():
 
 @app.on_event("startup")
 def register_webhook_subscription():
-    # TODO: implement — see docs/SPEC.md
-    log.info("webhook subscription: not implemented yet")
+    register_bigpms_webhook_subscription(BIGPMS_API_URL, CALLBACK_URL, WEBHOOK_SECRET)
 
 
 @app.post("/webhooks/bigpms")
 async def bigpms_webhook(request: Request):
-    raw_body = await request.body()  # you'll need the raw bytes for signature verification
-    # TODO: implement — see docs/SPEC.md
-    return Response(status_code=501, content="Not implemented")
+    raw_body = await request.body()
+    try:
+        status = await run_in_threadpool(
+            process_webhook,
+            raw_body,
+            request.headers.get("X-BigPMS-Signature"),
+            WEBHOOK_SECRET,
+        )
+    except InvalidWebhookSignature as exc:
+        raise HTTPException(status_code=401, detail="Invalid webhook signature") from exc
+    except InvalidWebhookPayload as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"status": status}
 
 
 # ---------------------------------------------------------------------------
-# TODO 2 — Scheduled feed sync (see SPEC section 2)
+# TODO 2 — Scheduled feed sync (see SPEC section 2 and docs/feed-sync-spec.md)
 # ---------------------------------------------------------------------------
 
 def sync_bigpms_ledger_events():
